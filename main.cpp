@@ -3,13 +3,12 @@
 #include <unistd.h>
 #include <ncurses.h>
 #include "RingBuffer.h"
-#include <cstring>
 using namespace std;
 
-void inputManager(WINDOW* inputWindow);
 void interruptingCow(RingBuffer& ringBuffer);
-void messageWindowManager(WINDOW* message, RingBuffer& ringBuffer);
-
+void updateMessageWindow(WINDOW *messageWindow, RingBuffer &ringBuffer);
+void pushMessageToBuffer(RingBuffer& ringBuffer, string message, bool origin);
+void inputManager(WINDOW* inputWindow, RingBuffer& ringBuffer);
 WINDOW *messageWindow = nullptr;
 
 bool killthread = false;
@@ -40,7 +39,7 @@ int main(int argc, char *argv[]){
 
     //begin mooing
     thread cowMow(interruptingCow, ref(ringBuffer));
-    thread inputThread(inputManager, ref(inputWindow));
+    thread inputThread(inputManager, ref(inputWindow), ref(ringBuffer));
 
     inputThread.join();
     cowMow.join();
@@ -54,17 +53,18 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-void inputManager(WINDOW* inputWindow){
+void inputManager(WINDOW* inputWindow, RingBuffer& ringBuffer){
     int inputRows;
     int inputCols;
     getmaxyx(inputWindow, inputRows, inputCols);
     char inputBuffer[200];
-    memset(inputBuffer, '\0', 200 * sizeof(char));
     while(strcmp(inputBuffer, "/quit") != 0){
+        memset(inputBuffer, '\0', 200 * sizeof(char));
         wmove(inputWindow, inputRows - 1, 0);
         wclrtobot(inputWindow);
         wprintw(inputWindow, "SEND >> ");
         wgetstr(inputWindow, inputBuffer);
+        pushMessageToBuffer(ringBuffer, inputBuffer, true);
         mvwprintw(inputWindow, inputRows - 2, 0, "USER ENTRY: %s", inputBuffer);
         wclrtoeol(inputWindow);
     }
@@ -77,14 +77,15 @@ void interruptingCow(RingBuffer& ringBuffer) {
     while(!killthread){
         string cowsays = " says MOOO: ";
         cowsays += to_string(i);
-        ringBuffer.push(cowsays, false);
+        pushMessageToBuffer(ringBuffer, cowsays, false);
         sleep(4);
         ++i;
-        messageWindowManager(messageWindow, ringBuffer);
+
+
     }
 }
 
-void messageWindowManager(WINDOW* messageWindow, RingBuffer& ringBuffer){
+void updateMessageWindow(WINDOW *messageWindow, RingBuffer &ringBuffer){
     int bufferStart = ringBuffer.getStart();
     int bufferCapacity = ringBuffer.getCapacity();
     //clear the window
@@ -110,4 +111,9 @@ void messageWindowManager(WINDOW* messageWindow, RingBuffer& ringBuffer){
     }
     //update the window
     wrefresh(messageWindow);
+}
+
+void pushMessageToBuffer(RingBuffer& ringBuffer, string message, bool origin){
+    ringBuffer.push(message, origin);
+    updateMessageWindow(messageWindow, ringBuffer);
 }
