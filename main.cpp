@@ -21,9 +21,11 @@ int main(int argc, char *argv[]){
     WINDOW *inputWindow = nullptr;
     messageWindow = newwin(parent_y - score_size, parent_x, 0, 0);
     inputWindow = newwin(score_size, parent_x, parent_y - score_size, 0); // draw to our windows
+
     keypad(inputWindow, TRUE);
     int messageRows;
     int messsageCols;
+
     getmaxyx(messageWindow, messageRows, messsageCols);
     //ring buffer init
 
@@ -34,15 +36,13 @@ int main(int argc, char *argv[]){
     wrefresh(messageWindow);
     wrefresh(inputWindow);
 
-
-
-
     //begin mooing
     thread cowMow(interruptingCow, ref(ringBuffer));
     thread inputThread(inputManager, ref(inputWindow), ref(ringBuffer));
 
     inputThread.join();
     cowMow.join();
+
     wclear(inputWindow);
     wclear(messageWindow);
     delwin(inputWindow);
@@ -59,6 +59,7 @@ void inputManager(WINDOW* inputWindow, RingBuffer& ringBuffer){
     getmaxyx(inputWindow, inputRows, inputCols);
     char inputBuffer[200];
     while(strcmp(inputBuffer, "/quit") != 0){
+        curs_set(1);
         memset(inputBuffer, '\0', 200 * sizeof(char));
         wmove(inputWindow, inputRows - 1, 0);
         wclrtobot(inputWindow);
@@ -72,7 +73,6 @@ void inputManager(WINDOW* inputWindow, RingBuffer& ringBuffer){
 }
 
 void interruptingCow(RingBuffer& ringBuffer) {
-
     int i = 0;
     while(!killthread){
         string cowsays = " says MOOO: ";
@@ -80,12 +80,11 @@ void interruptingCow(RingBuffer& ringBuffer) {
         pushMessageToBuffer(ringBuffer, cowsays, false);
         sleep(4);
         ++i;
-
-
     }
 }
 
 void updateMessageWindow(WINDOW *messageWindow, RingBuffer &ringBuffer){
+    curs_set(0);
     int bufferStart = ringBuffer.getStart();
     int bufferCapacity = ringBuffer.getCapacity();
     //clear the window
@@ -110,7 +109,9 @@ void updateMessageWindow(WINDOW *messageWindow, RingBuffer &ringBuffer){
         }
     }
     //update the window
+    curs_set(1);
     wrefresh(messageWindow);
+
 }
 
 void pushMessageToBuffer(RingBuffer& ringBuffer, string message, bool origin){
