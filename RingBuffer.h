@@ -4,33 +4,34 @@
 
 #ifndef TESTINGTHREADING_RINGBUFFER_H
 #define TESTINGTHREADING_RINGBUFFER_H
-
-#include <string>
-
-typedef struct Node{
-    bool fromSender;
+#include <mutex>
+#include <iostream>
+#include <vector>
+typedef struct Data{
     std::string message;
-    Node* next;
-    Node(bool origin, std::string message){
-        fromSender = origin;
-        this->message = message;
-        next = nullptr;
-    };
-} dataNode;
-
+    bool fromClinet;
+    Data(bool origin, std::string mess){
+        message = mess;
+        fromClinet = origin;
+    }
+}messageData;
 
 class RingBuffer {
 public:
-    RingBuffer(int size);
-    ~RingBuffer();
-    void pushToBuffer(bool origin, std::string message);
-    bool FillBuffer(dataNode buffer[]);
+    RingBuffer(int capacity);
+    void push(std::string mess, bool fromClient);
+    messageData* getTopMessage();
+    messageData* iterateObject(int i);
+    int getSize();
+    int getCapacity();
+    int getStart();
 
 private:
-int size;
+    std::mutex protectBuffer;
+    int size;
     int capacity;
-    dataNode* head;
-    dataNode* tail;
+    int currentIndex;
+    std::vector<messageData> storage;
 };
 
 

@@ -2,39 +2,44 @@
 #include <thread>
 #include <unistd.h>
 #include <ncurses.h>
+#include "RingBuffer.h"
 #include <cstring>
 using namespace std;
 
 void inputManager(WINDOW* inputWindow);
-void interruptingCow(WINDOW* message, int messageRows);
+void interruptingCow(RingBuffer& ringBuffer);
+void messageWindowManager(WINDOW* message, RingBuffer& ringBuffer);
 
-using namespace std;
+WINDOW *messageWindow = nullptr;
+
 bool killthread = false;
-
 int main(int argc, char *argv[]){
     int parent_x, parent_y;
     int score_size = 3; initscr();
 
     getmaxyx(stdscr, parent_y, parent_x);
     // set up initial windows
-    WINDOW *messageWindow = nullptr;
     WINDOW *inputWindow = nullptr;
     messageWindow = newwin(parent_y - score_size, parent_x, 0, 0);
     inputWindow = newwin(score_size, parent_x, parent_y - score_size, 0); // draw to our windows
     keypad(inputWindow, TRUE);
+    int messageRows;
+    int messsageCols;
+    getmaxyx(messageWindow, messageRows, messsageCols);
+    //ring buffer init
+
+    RingBuffer ringBuffer((messageRows + 1));
 
     mvwprintw(messageWindow, 0, 0, "Messages");
     mvwprintw(inputWindow, 0, 0, "MESSAGE INPUT"); // refresh each window
     wrefresh(messageWindow);
     wrefresh(inputWindow);
 
-    int messageRows;
-    int messsageCols;
-    getmaxyx(messageWindow, messageRows, messsageCols);
+
 
 
     //begin mooing
-    thread cowMow(interruptingCow, ref(messageWindow), messageRows);
+    thread cowMow(interruptingCow, ref(ringBuffer));
     thread inputThread(inputManager, ref(inputWindow));
 
     inputThread.join();
@@ -66,14 +71,43 @@ void inputManager(WINDOW* inputWindow){
     killthread = true;
 }
 
-void interruptingCow(WINDOW* messageWindow, int messageRows) {
+void interruptingCow(RingBuffer& ringBuffer) {
+
     int i = 0;
     while(!killthread){
-        wclrtobot(messageWindow);
-        mvwprintw(messageWindow, messageRows - 4, 0, "COW SAYS MOO %i\n", i);
-        wrefresh(messageWindow);
-        sleep(3);
+        string cowsays = " says MOOO: ";
+        cowsays += to_string(i);
+        ringBuffer.push(cowsays, false);
+        sleep(4);
         ++i;
+        messageWindowManager(messageWindow, ringBuffer);
     }
 }
 
+void messageWindowManager(WINDOW* messageWindow, RingBuffer& ringBuffer){
+    int bufferStart = ringBuffer.getStart();
+    int bufferCapacity = ringBuffer.getCapacity();
+    //clear the window
+    wclear(messageWindow);
+    Data* messageData = nullptr;
+    //start writing to screen
+    for(int i = 0; i < bufferCapacity; ++i){
+        if(bufferStart == 0){
+            messageData =  ringBuffer.iterateObject(i);
+        }
+        else{
+            messageData = ringBuffer.iterateObject((i + bufferStart) % bufferCapacity);
+        }
+
+        if(!messageData->message.empty() && !messageData->fromClinet){
+            //print client info to screen
+            mvwprintw(messageWindow, i, 0, "COW SAYS: %s", messageData->message.c_str());
+        }
+        else if(!messageData->message.empty() && messageData->fromClinet){
+            //print message to screen from server
+            mvwprintw(messageWindow, i, 0, "YOU SAID: %s", messageData->message.c_str());
+        }
+    }
+    //update the window
+    wrefresh(messageWindow);
+}
