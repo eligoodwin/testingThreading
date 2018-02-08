@@ -5,27 +5,24 @@
 #include <cstring>
 using namespace std;
 
-void manageInput(WINDOW *inputWindow, WINDOW* messageWindow);
+void inputManager(WINDOW* inputWindow);
 void interruptingCow(WINDOW* message, int messageRows);
-string getInput(WINDOW* inputwindow);
 
 using namespace std;
 bool killthread = false;
-WINDOW *messageWindow = nullptr;
-WINDOW *inputWindow = nullptr;
-
 
 int main(int argc, char *argv[]){
     int parent_x, parent_y;
     int score_size = 3; initscr();
-    keypad(stdscr, TRUE);
-
 
     getmaxyx(stdscr, parent_y, parent_x);
     // set up initial windows
+    WINDOW *messageWindow = nullptr;
+    WINDOW *inputWindow = nullptr;
     messageWindow = newwin(parent_y - score_size, parent_x, 0, 0);
     inputWindow = newwin(score_size, parent_x, parent_y - score_size, 0); // draw to our windows
     keypad(inputWindow, TRUE);
+
     mvwprintw(messageWindow, 0, 0, "Messages");
     mvwprintw(inputWindow, 0, 0, "MESSAGE INPUT"); // refresh each window
     wrefresh(messageWindow);
@@ -35,16 +32,15 @@ int main(int argc, char *argv[]){
     int messsageCols;
     getmaxyx(messageWindow, messageRows, messsageCols);
 
-    //test thread
 
+    //begin mooing
+    thread cowMow(interruptingCow, ref(messageWindow), messageRows);
+    thread inputThread(inputManager, ref(inputWindow));
 
-    string output;
-
-    thread inputstuff(manageInput, ref(inputWindow), ref(messageWindow));
-    thread annoyCow(interruptingCow, ref(messageWindow), messageRows);
-
-    inputstuff.join();
-    annoyCow.join();
+    inputThread.join();
+    cowMow.join();
+    wclear(inputWindow);
+    wclear(messageWindow);
     delwin(inputWindow);
     delwin(messageWindow);
     endwin();
@@ -53,52 +49,29 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-void manageInput(WINDOW *inputWindow, WINDOW* messageWindow){
-    int messageRows;
-    int messsageCols;
-    getmaxyx(messageWindow, messageRows, messsageCols);
-    int inputWindowRows;
-    int inputWindowsCols;
-    string output;
-    getmaxyx(inputWindow, inputWindowRows, inputWindowsCols);
-    char inputBuffer[1024];
-    while(output != "/quit"){
-        wmove(inputWindow, inputWindowRows - 1, 0);
+void inputManager(WINDOW* inputWindow){
+    int inputRows;
+    int inputCols;
+    getmaxyx(inputWindow, inputRows, inputCols);
+    char inputBuffer[200];
+    memset(inputBuffer, '\0', 200 * sizeof(char));
+    while(strcmp(inputBuffer, "/quit") != 0){
+        wmove(inputWindow, inputRows - 1, 0);
         wclrtobot(inputWindow);
-        mvwprintw(inputWindow, inputWindowRows - 1, 0, "SEND> ");
-        output = getInput(inputWindow);
-        memset(inputBuffer, '\0', 1024 * sizeof(char));
-        strcpy(inputBuffer, output.c_str());
-        wmove(messageWindow, messageRows - 2, 0);
-        wclrtobot(messageWindow);
-        mvwprintw(messageWindow, messageRows - 2, 0, inputBuffer);
-        wrefresh(messageWindow);
+        wprintw(inputWindow, "SEND >> ");
+        wgetstr(inputWindow, inputBuffer);
+        mvwprintw(inputWindow, inputRows - 2, 0, "USER ENTRY: %s", inputBuffer);
+        wclrtoeol(inputWindow);
     }
     killthread = true;
 }
 
-
-string getInput(WINDOW *inputWindow){
-    string output;
-    int ch = wgetch(inputWindow);
-    while(ch != '\n'){
-        output.push_back(ch);
-        ch = wgetch(inputWindow);
-    }
-    if(output == "/quit"){
-        return output;
-    }
-    output.insert(0, "Incoming message: ");
-    return output;
-}
-
-void interruptingCow(WINDOW* message, int messageRows) {
+void interruptingCow(WINDOW* messageWindow, int messageRows) {
     int i = 0;
     while(!killthread){
-        wmove(messageWindow, messageRows - 4, 0);
         wclrtobot(messageWindow);
         mvwprintw(messageWindow, messageRows - 4, 0, "COW SAYS MOO %i\n", i);
-        wrefresh(message);
+        wrefresh(messageWindow);
         sleep(3);
         ++i;
     }
